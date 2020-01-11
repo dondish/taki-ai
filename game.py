@@ -90,10 +90,7 @@ class State(Enum):
 
 
 class Agent:
-    def __init__(self):
-        self.hand = []
-
-    def play(self, game, state):
+    def play(self, game):
         return
 
 
@@ -106,7 +103,7 @@ class Game:
         assert 1 < len(agents) < 11
         self.agents = agents
         self.curr = 0
-        self.dir = 0
+        self.dir = 1
         self.state = State.NORMAL
         self.deck = []
         self.discard = []
@@ -132,16 +129,38 @@ class Game:
 
     def next_turn(self):
         if self.done():
-            return True
+            return True, self.curr
         agent = self.agents[self.curr]
-        action, card = agent.play(self, self.observation(agent))
+        action, card = agent.play(self)
         if action == Action.PLAY_CARD:
             self.discard.append(card)
+            self.hands[self.curr].remove(card)
             if card.type == Type.TAKI:
                 if card.color == Color.NONE:
                     self.state = State.SUPER_TAKI
                 else:
                     self.state = State.TAKI
+            if card.type == Type.TPLUS:
+                self.state = State.DRAW_TWO
+        elif action == Action.CLOSE_TAKI:
+            self.state = State.NORMAL
+        elif action == Action.DRAW:
+            s = 0
+            while len(self.discard) > 0 and self.discard[-1].type == Type.TPLUS:
+                s += 2
+            if s == 0:
+                s = 1
+            for i in range(s):
+                if len(self.deck) == 0:
+                    self.deck.extend(self.discard[:-1])
+                    random.shuffle(self.deck)
+                    self.discard = self.discard[-1:]
+                self.hands[agent].append(self.deck.pop())
+        if len(self.hands[self.curr]) == 0:
+            return True, self.curr
+        if self.state == State.NORMAL or self.state == State.DRAW_TWO:
+            self.curr = (self.curr + self.dir) % len(self.agents)
+            return False, self.curr
 
 
     def done(self):

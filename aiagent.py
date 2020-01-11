@@ -13,5 +13,5 @@ class AIAgent(Agent):
         self.model.add(Dense(len(Action.value), activation='linear'))
         self.model.compile(loss='mse', optimizer='adam', metrics=['mae'])
 
-    def play(self, game, obs):
-        return self.model.predict(obs)[0]
+    def play(self, game):
+        return self.model.predict(game.observation())[0]
