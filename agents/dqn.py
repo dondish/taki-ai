@@ -1,5 +1,5 @@
 from torch import nn
-from game import Agent, Action
+from game import Action
 
 
 class AIAgent(nn.Module):

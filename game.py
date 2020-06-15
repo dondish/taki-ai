@@ -55,7 +55,7 @@ class Type(Enum):
         elif self is Type.PLUS:
             return "+"
         else:
-            return str(self)
+            return str(self.value)
 
 
 class Card:
@@ -84,6 +84,14 @@ class Action(Enum):
     DRAW = 1
     CLOSE_TAKI = 2
 
+    def __str__(self):
+        if self is Action.PLAY_CARD:
+            return "play"
+        elif self is Action.DRAW:
+            return "draw"
+        else:
+            return "close taki"
+
 
 class State(Enum):
     NORMAL = 0
@@ -97,8 +105,8 @@ class State(Enum):
 
 def action_to_scalar(action, card):
     if action is Action.PLAY_CARD:
-        if card.color is not None:
-            return (card.color-1) * 15 + card.type  # Play any non Super TAKI Card
+        if card.color is not Color.NONE:
+            return (card.color.value-1) * 15 + card.type.value  # Play any non Super TAKI Card
         return 60  # Play SUPER TAKI
     elif action is Action.DRAW:
         return 61
@@ -108,8 +116,8 @@ def action_to_scalar(action, card):
 
 def scalar_to_action(scalar):
     if scalar < 60:
-        cardtype = scalar % 15
-        color = (scalar - cardtype) // 15 + 1
+        cardtype = Type(scalar % 15)
+        color = Color((scalar - cardtype) // 15 + 1)
         return Action.PLAY_CARD, Card(cardtype, color)
     elif scalar == 60:
         return Action.PLAY_CARD, Card(Type.TAKI)
@@ -138,7 +146,8 @@ class Game:
                 self.deck.extend([Card(Type.CHCOL)] * 4)
             else:
                 for color in Color:
-                    self.deck.extend([Card(t, color)] * 2)
+                    if color is not Color.NONE:
+                        self.deck.extend([Card(t, color)] * 2)
             if t == Type.TAKI:
                 self.deck.extend([Card(t)] * 2)
         random.shuffle(self.deck)
@@ -167,6 +176,8 @@ class Game:
 
     def process_action(self, action, card, agent):
         if action == Action.PLAY_CARD:
+            if self.state is State.PLUS:
+                self.state = State.NORMAL
             self.discard.append(card)
             self.hands[self.curr].remove(card)
             if card.type is Type.TAKI:
@@ -189,7 +200,7 @@ class Game:
                 if self.state is not State.TAKI and self.state is not State.SUPER_TAKI:
                     self.state = State.PLUS
             if self.debug:
-                print(f"Player {agent+1} played {card}.")
+                print(f"Player {agent+1} played {str(card)}.")
         elif action is Action.CLOSE_TAKI:
             if self.shown_card().type is Type.STOP:
                 self.state = State.STOP
@@ -207,13 +218,16 @@ class Game:
             if self.state is State.DRAW_TWO:
                 s += 2 * self.draw_num
                 self.draw_num = 0
+                self.state = State.NORMAL
             if s == 0:
                 s = 1
             self.draw_card(agent, s)
             if self.debug:
                 print(f"Player {agent+1} drew {s} cards.")
 
-    def valid_moves(self, agent):
+    def valid_moves(self, agent=None):
+        if agent is None:
+            agent = self.curr
         cards = self.hands[agent]
         res = []
         # Play Cards
