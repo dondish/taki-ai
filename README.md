@@ -1,8 +1,10 @@
 # Taki AI
-This is an experiment of teaching an AI to play [Taki](https://www.takigame.com/) using Reinforcement Learning (Q Learning).
+This is an experiment of teaching an AI to play [Taki](https://www.takigame.com/).
+
+This project uses PyTorch for Neural Networks.
 
 # Algorithm
-I plan on using Monte Carlo Control, although I might change it later.
+Uses DQN.
 
 # License
 

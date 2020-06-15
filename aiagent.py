@@ -1,17 +1,11 @@
+from torch import nn
 from game import Agent, Action
-from keras.models import Sequential
-from keras.layers import Dense, InputLayer
 
 
-class AIAgent(Agent):
+class AIAgent(nn.Module):
 
     def __init__(self):
-        super().__init__()
-        self.model = Sequential()
-        self.model.add(InputLayer(batch_input_shape=(1, 10)))
-        self.model.add(Dense(10, activation='sigmoid'))
-        self.model.add(Dense(len(Action.value), activation='linear'))
-        self.model.compile(loss='mse', optimizer='adam', metrics=['mae'])
+        super(AIAgent, self).__init__()
 
     def play(self, game):
-        return self.model.predict(game.observation())[0]
+        pass

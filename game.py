@@ -1,6 +1,7 @@
-from enum import Enum
-import numpy as np
 import random
+from enum import Enum
+
+import torch
 
 
 class Color(Enum):
@@ -36,8 +37,9 @@ class Type(Enum):
     NINE = 9
     STOP = 10
     CHDIR = 11
-    TPLUS = 12
+    PLUSTWO = 12
     CHCOL = 13
+    PLUS = 14
 
     def __str__(self):
         if self is Type.TAKI:
@@ -46,10 +48,12 @@ class Type(Enum):
             return "stop"
         elif self is Type.CHDIR:
             return "change direction"
-        elif self is Type.TPLUS:
+        elif self is Type.PLUSTWO:
             return "2+"
         elif self is Type.CHCOL:
             return "change color"
+        elif self is Type.PLUS:
+            return "+"
         else:
             return str(self)
 
@@ -87,15 +91,36 @@ class State(Enum):
     TAKI = 2
     SUPER_TAKI = 3
     FINISHED = 4
+    PLUS = 5
+    STOP = 6  # Internal State
 
 
-class Agent:
-    def play(self, game):
-        return
+def action_to_scalar(action, card):
+    if action is Action.PLAY_CARD:
+        if card.color is not None:
+            return (card.color-1) * 15 + card.type  # Play any non Super TAKI Card
+        return 60  # Play SUPER TAKI
+    elif action is Action.DRAW:
+        return 61
+    elif action is Action.CLOSE_TAKI:
+        return 62
+
+
+def scalar_to_action(scalar):
+    if scalar < 60:
+        cardtype = scalar % 15
+        color = (scalar - cardtype) // 15 + 1
+        return Action.PLAY_CARD, Card(cardtype, color)
+    elif scalar == 60:
+        return Action.PLAY_CARD, Card(Type.TAKI)
+    elif scalar == 61:
+        return Action.DRAW, None
+    else:
+        return Action.CLOSE_TAKI, None
 
 
 class Game:
-    def __init__(self, agents):
+    def __init__(self, agents, debug=False):
         """
 
         :param agents(List):
@@ -107,6 +132,7 @@ class Game:
         self.state = State.NORMAL
         self.deck = []
         self.discard = []
+        self.draw_num = 0
         for t in Type:
             if t == Type.CHCOL:
                 self.deck.extend([Card(Type.CHCOL)] * 4)
@@ -118,6 +144,7 @@ class Game:
         random.shuffle(self.deck)
         self.discard.append(self.deck.pop())
         self.hands = []
+        self.debug = debug
         for i in range(len(agents)):
             a = []
             for j in range(8):
@@ -127,44 +154,111 @@ class Game:
     def shown_card(self):
         return self.discard[-1]
 
+    def next_agent(self):
+        self.curr = (self.curr + self.dir) % len(self.agents)
+
+    def draw_card(self, agent, amount=1):
+        for i in range(amount):
+            if len(self.deck) == 0:
+                self.deck.extend(self.discard[:-1])
+                random.shuffle(self.deck)
+                self.discard = self.discard[-1:]
+            self.hands[agent].append(self.deck.pop())
+
+    def process_action(self, action, card, agent):
+        if action == Action.PLAY_CARD:
+            self.discard.append(card)
+            self.hands[self.curr].remove(card)
+            if card.type is Type.TAKI:
+                if card.color is Color.NONE:
+                    self.state = State.SUPER_TAKI
+                else:
+                    self.state = State.TAKI
+            elif card.type is Type.PLUSTWO:
+                if self.state is not State.TAKI and self.state is not State.SUPER_TAKI:
+                    self.state = State.DRAW_TWO
+                    self.draw_num += 1
+            elif card.type is Type.CHCOL:
+                pass  # it automatically changes the color of the card
+            elif card.type is Type.STOP:
+                if self.state is not State.TAKI and self.state is not State.SUPER_TAKI:
+                    self.state = State.STOP
+            elif card.type is Type.CHDIR:
+                self.dir *= 1
+            elif card.type is Type.PLUS:
+                if self.state is not State.TAKI and self.state is not State.SUPER_TAKI:
+                    self.state = State.PLUS
+            if self.debug:
+                print(f"Player {agent+1} played {card}.")
+        elif action is Action.CLOSE_TAKI:
+            if self.shown_card().type is Type.STOP:
+                self.state = State.STOP
+            elif self.shown_card().type is Type.PLUS:
+                self.state = State.PLUS
+            elif self.shown_card().type is Type.PLUSTWO:
+                self.state = State.DRAW_TWO
+                self.draw_num += 1
+            else:
+                self.state = State.NORMAL
+            if self.debug:
+                print(f"Player {agent+1} closed the TAKI.")
+        elif action is Action.DRAW:
+            s = 0
+            if self.state is State.DRAW_TWO:
+                s += 2 * self.draw_num
+                self.draw_num = 0
+            if s == 0:
+                s = 1
+            self.draw_card(agent, s)
+            if self.debug:
+                print(f"Player {agent+1} drew {s} cards.")
+
+    def valid_moves(self, agent):
+        cards = self.hands[agent]
+        res = []
+        # Play Cards
+        for card in cards:
+            if self.state is State.DRAW_TWO:
+                if card is State.DRAW_TWO:
+                    res.append((Action.PLAY_CARD, card))
+            elif self.state is State.SUPER_TAKI:
+                res.append((Action.PLAY_CARD, card))
+            elif self.shown_card().type is card.type \
+                    or self.shown_card().color is card.color \
+                    or self.shown_card().color is Color.NONE:
+                if card.type is Type.CHCOL:
+                    for i in Color:
+                        if i is not Color.NONE:
+                            res.append((Action.PLAY_CARD, Card(Type.CHCOL, i)))
+                else:
+                    res.append((Action.PLAY_CARD, card))
+        # Draw Cards
+        res.append((Action.DRAW, None))
+        # Close TAKI
+        if self.state is State.TAKI or self.state is State.SUPER_TAKI:
+            res.append((Action.CLOSE_TAKI, None))
+        return res
+
     def next_turn(self):
         if self.done():
             return True, self.curr
         agent = self.agents[self.curr]
+        if self.debug:
+            print(f"It's player {self.curr+1}'s turn.")
         action, card = agent.play(self)
-        if action == Action.PLAY_CARD:
-            self.discard.append(card)
-            self.hands[self.curr].remove(card)
-            if card.type == Type.TAKI:
-                if card.color == Color.NONE:
-                    self.state = State.SUPER_TAKI
-                else:
-                    self.state = State.TAKI
-            if card.type == Type.TPLUS:
-                self.state = State.DRAW_TWO
-        elif action == Action.CLOSE_TAKI:
-            self.state = State.NORMAL
-        elif action == Action.DRAW:
-            s = 0
-            while len(self.discard) > 0 and self.discard[-1].type == Type.TPLUS:
-                s += 2
-            if s == 0:
-                s = 1
-            for i in range(s):
-                if len(self.deck) == 0:
-                    self.deck.extend(self.discard[:-1])
-                    random.shuffle(self.deck)
-                    self.discard = self.discard[-1:]
-                self.hands[agent].append(self.deck.pop())
+        self.process_action(action, card, self.curr)
         if len(self.hands[self.curr]) == 0:
+            self.state = State.FINISHED
             return True, self.curr
+        if self.state == State.STOP:
+            self.next_agent()
+            self.state = State.NORMAL
         if self.state == State.NORMAL or self.state == State.DRAW_TWO:
-            self.curr = (self.curr + self.dir) % len(self.agents)
-            return False, self.curr
-
+            self.next_agent()
+        return False, self.curr
 
     def done(self):
         return self.state == State.FINISHED
 
     def observation(self, agent):
-        return np.array([self.state, 1, 2, 3, 4])
+        return torch.tensor(self.state)
