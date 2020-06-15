@@ -1,10 +1,14 @@
 from collections import deque
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
 from game import *
+strategy = tf.distribute.MirroredStrategy()
+print("Number of devices: {}".format(strategy.num_replicas_in_sync))
 
 # I would like to thank https://towardsdatascience.com/reinforcement-learning-w-keras-openai-dqns-1eed3a5338c
 # for making an easy to read tutorial on DQN with Keras, I didn't know how to implement this and it really helped.
@@ -20,7 +24,7 @@ def valid_action_mask(actions):
 class AIAgent:
 
     def __init__(self, seed=42, gamma=0.99, epsilon=1.0, epsilon_min=0.1, epsilon_max=1.0, batch_size=32,
-                 max_steps_per_epsiode=10000, epsilon_decay=0.995, learning_rate=0.01):
+                 max_steps_per_epsiode=10000, epsilon_decay=0.995, learning_rate=0.01, load_model=None):
         super(AIAgent, self).__init__()
         self.seed = seed
         self.gamma = gamma
@@ -32,8 +36,12 @@ class AIAgent:
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.max_steps_per_episode = max_steps_per_epsiode
-        self.model = self.create_model()
-        self.target_model = self.create_model()
+        with strategy.scope():
+            self.model = self.create_model()
+            self.target_model = self.create_model()
+            if load_model is not None:
+                self.model.load_weights(filepath=load_model)
+                self.target_model.load_weights(filepath=load_model)
 
     def create_model(self):
         model = keras.Sequential()

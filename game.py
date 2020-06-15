@@ -25,6 +25,9 @@ class Color(Enum):
 
 
 class Type(Enum):
+    """
+
+    """
     TAKI = 0
     ONE = 1
     TWO = 2
@@ -86,11 +89,18 @@ class Card:
 
 
 class Action(Enum):
+    """
+    An Enum representing the possible actions.
+    """
     PLAY_CARD = 0
     DRAW = 1
     CLOSE_TAKI = 2
 
     def __str__(self):
+        """
+        The string representing the action.
+        :return: a string
+        """
         if self is Action.PLAY_CARD:
             return "play"
         elif self is Action.DRAW:
@@ -100,6 +110,9 @@ class Action(Enum):
 
 
 class State(Enum):
+    """
+    An Enum representing the possible states.
+    """
     NORMAL = 0
     DRAW_TWO = 1
     TAKI = 2
@@ -110,6 +123,12 @@ class State(Enum):
 
 
 def action_to_scalar(action, card):
+    """
+    Converts an action to a scalar.
+    :param action: the action to convert
+    :param card: the card played if the action is PLAY_CARD
+    :return: the scalar representing that (Action, Card) pair
+    """
     if action is Action.PLAY_CARD:
         if card.color is not Color.NONE:
             return (card.color.value-1) * 15 + card.type.value  # Play any non Super TAKI Card
@@ -121,6 +140,11 @@ def action_to_scalar(action, card):
 
 
 def scalar_to_action(scalar):
+    """
+    Converts a scalar to an action.
+    :param scalar: the scalar to convert.
+    :return: an (Action, Card) tuple.
+    """
     if scalar < 60:
         cardtype = Type(scalar % 15)
         color = Color((scalar - cardtype.value) // 15 + 1)
@@ -134,6 +158,12 @@ def scalar_to_action(scalar):
 
 
 def card_to_scalar(card):
+    """
+    Converts the card to a scalar.
+    Finds the index in the card vector.
+    :param card: the card to convert
+    :return: a scalar (int)
+    """
     if card.color is not Color.NONE:
         return (card.color.value - 1) * 15 + card.type.value
     elif card.type is Type.CHCOL:
@@ -143,6 +173,14 @@ def card_to_scalar(card):
 
 
 def card_to_vector(card, *cards):
+    """
+    Converts a card / deck to a vector.
+    The vector has the size of the number of cards, and the value of each index is the amount of cards of that type and
+    color.
+    :param card: the card object.
+    :param cards: additional objects to add to the vector.
+    :return: the card / deck vector/
+    """
     vec = np.zeros(62, dtype=int)
     vec[card_to_scalar(card)] = 1
     if len(cards) > 0:
@@ -152,10 +190,16 @@ def card_to_vector(card, *cards):
 
 
 class Game:
+    """
+    The general Game class.
+    Controls the flow of the game.
+    """
     def __init__(self, agents, debug=False, seed=random.seed):
         """
-
-        :param agents(List):
+        Initialises the game
+        :param agents: the agents playing
+        :param debug: whether to print out information
+        :param seed: the seed for the random actions
         """
         assert 1 < len(agents) < 11
         self.agents = agents
@@ -185,13 +229,45 @@ class Game:
                 a.append(self.deck.pop())
             self.hands.append(a)
 
+    def reset(self):
+        for t in Type:
+            if t == Type.CHCOL:
+                self.deck.extend([Card(Type.CHCOL)] * 4)
+            else:
+                for color in Color:
+                    if color is not Color.NONE:
+                        self.deck.extend([Card(t, color)] * 2)
+            if t == Type.TAKI:
+                self.deck.extend([Card(t)] * 2)
+        self.random.shuffle(self.deck)
+        self.discard.append(self.deck.pop())
+        for i in range(len(self.agents)):
+            a = []
+            for j in range(8):
+                a.append(self.deck.pop())
+            self.hands.append(a)
+
+
     def shown_card(self):
+        """
+        Returns the card on top of the discard pile.
+        :return: the top card
+        """
         return self.discard[-1]
 
     def next_agent(self):
+        """
+        Calculates the next player
+        :return: the next player
+        """
         self.curr = (self.curr + self.dir) % len(self.agents)
 
     def draw_card(self, agent, amount=1):
+        """
+        Draws one or more cards for an agent
+        :param agent: the agent to draw cards to
+        :param amount: the amount of cards to draw
+        """
         for i in range(amount):
             if len(self.deck) == 0:
                 self.deck.extend(self.discard[:-1])
@@ -203,6 +279,12 @@ class Game:
             self.hands[agent].append(self.deck.pop())
 
     def process_action(self, action, card, agent):
+        """
+        Process an action
+        :param action: the action to process
+        :param card: the card played if action is PLAY_CARD
+        :param agent: the agent who made the action
+        """
         if self.state is State.PLUS:
             self.state = State.NORMAL
         if self.state is State.SUPER_TAKI:
@@ -210,9 +292,9 @@ class Game:
         if action == Action.PLAY_CARD:
             self.discard.append(card)
             if card.type is Type.CHCOL:
-                self.hands[self.curr].remove(Card(Type.CHCOL))
+                self.hands[agent].remove(Card(Type.CHCOL))
             else:
-                self.hands[self.curr].remove(card)
+                self.hands[agent].remove(card)
             if card.type is Type.TAKI:
                 if card.color is Color.NONE:
                     self.state = State.SUPER_TAKI
@@ -228,7 +310,7 @@ class Game:
                 if self.state is not State.TAKI and self.state is not State.SUPER_TAKI:
                     self.state = State.STOP
             elif card.type is Type.CHDIR:
-                self.dir *= 1
+                self.dir *= -1
             elif card.type is Type.PLUS:
                 if self.state is not State.TAKI and self.state is not State.SUPER_TAKI:
                     self.state = State.PLUS
@@ -252,6 +334,8 @@ class Game:
                 s += 2 * self.draw_num
                 self.draw_num = 0
                 self.state = State.NORMAL
+            if self.state is State.TAKI or self.state is State.SUPER_TAKI:
+                self.state = State.NORMAL
             if s == 0:
                 s = 1
             self.draw_card(agent, s)
@@ -259,6 +343,11 @@ class Game:
                 print(f"Player {agent+1} drew {s} cards.")
 
     def valid_moves(self, agent=None):
+        """
+        Returns an array with valid moves for the given agent.
+        :param agent: the agent to get moves of, defaults to the current player
+        :return: an array of (Action, Card) tuples.
+        """
         if agent is None:
             agent = self.curr
         cards = self.hands[agent]
@@ -288,6 +377,9 @@ class Game:
         return res
 
     def next_turn(self):
+        """
+        Calculates next turn.
+        """
         if self.done():
             return True, self.curr
         agent = self.agents[self.curr]
@@ -308,9 +400,18 @@ class Game:
         return False, self.curr
 
     def done(self):
+        """
+        Returns whether the game is finished or not.
+        :return: whether the game is finished or not.
+        """
         return self.state == State.FINISHED
 
     def observation(self, agent=None):
+        """
+        Returns the state vector.
+        :param agent: the agent to see the observation with.
+        :return: the observation vector.
+        """
         # hand + discard + state + draw_num + card shown
         if agent is None:
             agent = self.curr

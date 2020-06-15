@@ -1,13 +1,13 @@
 import random
-random.seed(0)
 
 from game import *
 from agents.random import RandomAgent
 from agents.human import HumanAgent
+from agents.dqn import AIAgent
 
 if __name__ == '__main__':
     # Normal game, 4 players, 3 random and 1 human
-    game = Game([RandomAgent(0), RandomAgent(0), RandomAgent(0), HumanAgent()], True)
+    game = Game([RandomAgent(), RandomAgent(), AIAgent('./models/checkpoint1592259492.507358'), HumanAgent()], True)
     # print(game.deck)
     print(game.observation().shape)
     while not game.done():
