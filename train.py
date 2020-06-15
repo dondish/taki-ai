@@ -30,9 +30,4 @@ if __name__ == '__main__':
             cur_state = new_state
             if done:
                 break
-        if step >= 199:
-            print("Failed to complete trial")
-        else:
-            print("Completed in {} trials".format(trial))
-            break
     dqn_agent.model.save(f'./models/checkpoint{datetime.now().timestamp()}')
