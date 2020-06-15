@@ -1,7 +1,7 @@
 import random
 from enum import Enum
 
-import torch
+import numpy as np
 
 
 class Color(Enum):
@@ -38,8 +38,8 @@ class Type(Enum):
     STOP = 10
     CHDIR = 11
     PLUSTWO = 12
-    CHCOL = 13
-    PLUS = 14
+    PLUS = 13
+    CHCOL = 14
 
     def __str__(self):
         if self is Type.TAKI:
@@ -73,10 +73,16 @@ class Card:
             return "super taki"
         return f"{self.color}{' ' if not self.color is Color.NONE else ''}{self.type}"
 
+    def __repr__(self):
+        return str(self)
+
     def amount(self):
         if self.type == Type.CHCOL:
             return 4
         return 2
+
+    def __eq__(self, other):
+        return self.type == other.type and self.color == other.color
 
 
 class Action(Enum):
@@ -117,7 +123,7 @@ def action_to_scalar(action, card):
 def scalar_to_action(scalar):
     if scalar < 60:
         cardtype = Type(scalar % 15)
-        color = Color((scalar - cardtype) // 15 + 1)
+        color = Color((scalar - cardtype.value) // 15 + 1)
         return Action.PLAY_CARD, Card(cardtype, color)
     elif scalar == 60:
         return Action.PLAY_CARD, Card(Type.TAKI)
@@ -127,8 +133,26 @@ def scalar_to_action(scalar):
         return Action.CLOSE_TAKI, None
 
 
+def card_to_scalar(card):
+    if card.color is not Color.NONE:
+        return (card.color.value - 1) * 15 + card.type.value
+    elif card.type is Type.CHCOL:
+        return 60
+    else:
+        return 61
+
+
+def card_to_vector(card, *cards):
+    vec = np.zeros(62, dtype=int)
+    vec[card_to_scalar(card)] = 1
+    if len(cards) > 0:
+        for c in cards:
+            vec += card_to_vector(c)
+    return vec
+
+
 class Game:
-    def __init__(self, agents, debug=False):
+    def __init__(self, agents, debug=False, seed=random.seed):
         """
 
         :param agents(List):
@@ -150,7 +174,8 @@ class Game:
                         self.deck.extend([Card(t, color)] * 2)
             if t == Type.TAKI:
                 self.deck.extend([Card(t)] * 2)
-        random.shuffle(self.deck)
+        self.random = random.Random(seed)
+        self.random.shuffle(self.deck)
         self.discard.append(self.deck.pop())
         self.hands = []
         self.debug = debug
@@ -170,16 +195,24 @@ class Game:
         for i in range(amount):
             if len(self.deck) == 0:
                 self.deck.extend(self.discard[:-1])
-                random.shuffle(self.deck)
+                self.random.shuffle(self.deck)
+                for card in self.deck:
+                    if card.type is Type.CHCOL:  # Needs reset on change color
+                        card.color = Color.NONE
                 self.discard = self.discard[-1:]
             self.hands[agent].append(self.deck.pop())
 
     def process_action(self, action, card, agent):
+        if self.state is State.PLUS:
+            self.state = State.NORMAL
+        if self.state is State.SUPER_TAKI:
+            self.state = State.TAKI
         if action == Action.PLAY_CARD:
-            if self.state is State.PLUS:
-                self.state = State.NORMAL
             self.discard.append(card)
-            self.hands[self.curr].remove(card)
+            if card.type is Type.CHCOL:
+                self.hands[self.curr].remove(Card(Type.CHCOL))
+            else:
+                self.hands[self.curr].remove(card)
             if card.type is Type.TAKI:
                 if card.color is Color.NONE:
                     self.state = State.SUPER_TAKI
@@ -239,7 +272,8 @@ class Game:
                 res.append((Action.PLAY_CARD, card))
             elif self.shown_card().type is card.type \
                     or self.shown_card().color is card.color \
-                    or self.shown_card().color is Color.NONE:
+                    or self.shown_card().color is Color.NONE\
+                    or card.color is Color.NONE:
                 if card.type is Type.CHCOL:
                     for i in Color:
                         if i is not Color.NONE:
@@ -263,6 +297,8 @@ class Game:
         self.process_action(action, card, self.curr)
         if len(self.hands[self.curr]) == 0:
             self.state = State.FINISHED
+            if self.debug:
+                print(f"Player {self.curr+1} won!")
             return True, self.curr
         if self.state == State.STOP:
             self.next_agent()
@@ -274,5 +310,12 @@ class Game:
     def done(self):
         return self.state == State.FINISHED
 
-    def observation(self, agent):
-        return torch.tensor(self.state)
+    def observation(self, agent=None):
+        # hand + discard + state + draw_num + card shown
+        if agent is None:
+            agent = self.curr
+        return np.concatenate(
+            (card_to_vector(*self.hands[agent]) if len(self.hands[agent]) > 0 else np.zeros(62, dtype=int),
+             card_to_vector(*self.discard),
+             np.array([self.state.value]), np.array([self.draw_num]),
+             card_to_vector(self.shown_card())))
