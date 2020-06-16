@@ -44,9 +44,9 @@ if __name__ == '__main__':
     trial_len = 300
     updateTargetNetwork = 100
     num_of_players = 4
-    dqn_agent = AIAgent('./models/checkpoint1592310334.794725')
+    dqn_agent = AIAgent('./models/checkpoint1592326865.162749')
     wins = [0]
-    game = Game([dqn_agent, *(AIAgent('./models/checkpoint1592310334.794725') for i in range(num_of_players - 1))])
+    game = Game([dqn_agent, *(AIAgent('./models/checkpoint1592326865.162749') for i in range(num_of_players - 1))])
     steps = []
     for trial in range(trials):
         print(f"Trial {trial+1}/{trials}")
@@ -63,7 +63,7 @@ if __name__ == '__main__':
                 turns += 1
                 done, curr = game.next_turn()
             new_state = game.observation(agent=0)
-            reward = (sum(map(len, game.hands))) if done and curr == 0 else (0 if turns == 1 else -(len(game.hands[0])))
+            reward = 1 if done and curr == 0 else (0 if not done else -1)
             if done and curr == 0:
                 wins.append(wins[-1] + 1)
             elif done:
