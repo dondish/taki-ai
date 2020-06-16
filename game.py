@@ -5,6 +5,9 @@ import numpy as np
 
 
 class Color(Enum):
+    """
+    An Enum representing the color of the card.
+    """
     NONE = 0
     RED = 1
     YELLOW = 2
@@ -26,7 +29,7 @@ class Color(Enum):
 
 class Type(Enum):
     """
-
+    An Enum representing the type of the card.
     """
     TAKI = 0
     ONE = 1
@@ -80,6 +83,10 @@ class Card:
         return str(self)
 
     def amount(self):
+        """
+        Calculates the amount needed per game
+        :return: an int
+        """
         if self.type == Type.CHCOL:
             return 4
         return 2
@@ -230,6 +237,11 @@ class Game:
             self.hands.append(a)
 
     def reset(self):
+        """
+        Resets the game state.
+        """
+        self.state = State.NORMAL
+        self.deck.clear()
         for t in Type:
             if t == Type.CHCOL:
                 self.deck.extend([Card(Type.CHCOL)] * 4)
@@ -240,7 +252,9 @@ class Game:
             if t == Type.TAKI:
                 self.deck.extend([Card(t)] * 2)
         self.random.shuffle(self.deck)
+        self.discard.clear()
         self.discard.append(self.deck.pop())
+        self.hands.clear()
         for i in range(len(self.agents)):
             a = []
             for j in range(8):
@@ -261,6 +275,8 @@ class Game:
         :return: the next player
         """
         self.curr = (self.curr + self.dir) % len(self.agents)
+        if self.curr < 0:
+            self.curr = len(self.agents) + self.curr
 
     def draw_card(self, agent, amount=1):
         """
@@ -285,6 +301,8 @@ class Game:
         :param card: the card played if action is PLAY_CARD
         :param agent: the agent who made the action
         """
+        if self.debug:
+            print(f"Player {agent+1}'s turn.\nCards {self.hands[agent]}")
         if self.state is State.PLUS:
             self.state = State.NORMAL
         if self.state is State.SUPER_TAKI:

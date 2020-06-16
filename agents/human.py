@@ -14,7 +14,10 @@ class HumanAgent:
 
     def play(self, game):
         moves = game.valid_moves()
+        print("--------------------------------------")
+        print()
         print(f"It's your turn, Player {game.curr+1}.")
+        print(f"Amounts of cards: {', '.join(map(str,map(len, game.hands)))}")
         print("Shown Card:", str(game.shown_card()))
         print("Your Cards:", ", ".join(map(str, game.hands[game.curr])))
         print("Valid Moves:\n", self.display_moves(moves))
