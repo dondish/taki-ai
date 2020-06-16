@@ -312,6 +312,8 @@ class Game:
             if card.type is Type.CHCOL:
                 self.hands[agent].remove(Card(Type.CHCOL))
             else:
+                if card not in self.hands[agent]:
+                    print(self.hands[agent], card)
                 self.hands[agent].remove(card)
             if card.type is Type.TAKI:
                 if card.color is Color.NONE:

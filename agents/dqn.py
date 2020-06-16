@@ -1,6 +1,7 @@
 from collections import deque
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+
+import tensorflow as tf
+print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 
 import tensorflow as tf
 from tensorflow import keras
@@ -8,7 +9,7 @@ from tensorflow.keras import layers
 
 from game import *
 strategy = tf.distribute.MirroredStrategy()
-print("Number of devices: {}".format(strategy.num_replicas_in_sync))
+print("Number of GPUs: {}".format(strategy.num_replicas_in_sync))
 
 # I would like to thank https://towardsdatascience.com/reinforcement-learning-w-keras-openai-dqns-1eed3a5338c
 # for making an easy to read tutorial on DQN with Keras, I didn't know how to implement this and it really helped.

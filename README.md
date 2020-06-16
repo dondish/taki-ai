@@ -1,12 +1,18 @@
 # Taki AI
-This is an experiment of teaching an AI to play [Taki](https://www.takigame.com/).
+This is an experiment of teaching an AI to play [Taki](https://www.takigame.com/), a game which I own no rights to.
 
 This project uses Keras and Tensorflow for Neural Networks.
 
 The game does not use the 3+, 3+ breaker cards and the king card (new Taki cards).
 
+This project taught me a lot about reinforcement learning and AI and I hope to continue making silly robots that learn!
+
 # Algorithm
 Uses DQN with experience replay.
+
+The heuristic is minus the amount of cards a player has when he finishes his turn, and the sum of the enemy cards on win.
+
+This proved to improve the win rate by a substantial amount, also teaching the AI to use 2+ against enemy players.
 
 ## Card Vector
 Cards are a vector with dimension of the number of cards, with one at the respective index.
@@ -27,7 +33,12 @@ A concatenation of the following vectors / scalars:
 # Using the project
 `train.py` trains the AI.
 
-`main.py` let's you play against opponents with a random policy.
+`main.py` Let's you play against opponents. 
+You can customize the agents which you play against.
+
+Random agents are pretty easy to beat since they are likely to draw cards when they are low on cards. 
+
+AI Agents need to be given a model to use or else they will use the random policy.
 
 `game.py` defines all the classes needed to run the game.
 

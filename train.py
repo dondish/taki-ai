@@ -5,11 +5,11 @@ from datetime import datetime
 from matplotlib import pyplot as plt
 
 
-def plot_rewards(values, title=''):
-    f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+def plot_rewards(values, wins, title=''):
+    f, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 5))
     f.suptitle(title)
     ax[0].plot(values, label='reward per episode')
-    ax[0].axhline(195, c='red', ls='--', label='goal')
+    ax[0].axhline(1, c='red', ls='--', label='goal')
     ax[0].set_xlabel('Episodes')
     ax[0].set_ylabel('Reward')
     x = range(len(values))
@@ -24,22 +24,29 @@ def plot_rewards(values, title=''):
 
     # Plot the histogram of results
     ax[1].hist(values[-50:])
-    ax[1].axvline(195, c='red', label='goal')
+    ax[1].axvline(95, c='red', label='goal')
     ax[1].set_xlabel('Rewards per Last 50 Episodes')
     ax[1].set_ylabel('Frequency')
     ax[1].legend()
+
+    ax[2].plot(wins, label='accumulated win % per episode')
+    ax[2].set_xlabel('Episode')
+    ax[2].set_ylabel('Accumulated win %')
+    ax[2].axhline(1, c='red', ls='--', label='100% win rate')
+    ax[2].legend()
     plt.show()
 
 
 if __name__ == '__main__':
-    print('Training Machine with 3 random agents')
+    print('Training Machine with 3 previously trained DQN agents')
     rewards = []
     trials = 100
     trial_len = 300
     updateTargetNetwork = 100
     num_of_players = 4
-    dqn_agent = AIAgent()
-    game = Game([dqn_agent, *(RandomAgent() for i in range(num_of_players - 1))])
+    dqn_agent = AIAgent('./models/checkpoint1592310334.794725')
+    wins = [0]
+    game = Game([dqn_agent, *(AIAgent('./models/checkpoint1592310334.794725') for i in range(num_of_players - 1))])
     steps = []
     for trial in range(trials):
         print(f"Trial {trial+1}/{trials}")
@@ -50,11 +57,17 @@ if __name__ == '__main__':
             prev = len(game.hands[0])
             action = dqn_agent.act(cur_state, list(map(lambda x: action_to_scalar(*x), game.valid_moves())))
             curr, done = (-1, False)
+            turns = 0
             while curr != 0 and not done:  # fast forward until it's our turn again
                 # print(curr)
+                turns += 1
                 done, curr = game.next_turn()
             new_state = game.observation(agent=0)
-            reward = (sum(map(len, game.hands))) if done and curr == 0 else (len(game.hands[0])-prev)
+            reward = (sum(map(len, game.hands))) if done and curr == 0 else (0 if turns == 1 else -(len(game.hands[0])))
+            if done and curr == 0:
+                wins.append(wins[-1] + 1)
+            elif done:
+                wins.append(wins[-1])
             # print(reward, 'step', step)
             episode_rewards.append(reward)
             dqn_agent.remember(cur_state, action,
@@ -69,5 +82,5 @@ if __name__ == '__main__':
         dqn_agent.replay()  # Run replay buffer
         dqn_agent.target_train()  # Update target model
         rewards.append(sum(episode_rewards))
-    plot_rewards(rewards, 'Rewards over episodes')
+    plot_rewards(rewards, wins, 'Rewards over episodes')
     dqn_agent.model.save(f'./models/checkpoint{datetime.now().timestamp()}')
